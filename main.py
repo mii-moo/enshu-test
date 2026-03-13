@@ -27,7 +27,7 @@ if st.session_state.step == 1:
         
         if st.button("チャンネル名変更へ進む"):
             st.session_state.step = 2
-            st.experimental_rerun()
+            st.rerun()
 
 # --- ②チャンネル名の変更セクション ---
 elif st.session_state.step == 2:
@@ -40,7 +40,7 @@ elif st.session_state.step == 2:
         new_cols = [c.strip().replace("EXT.1", "S2").replace("EXT", "S1") for c in df.columns]
         df.columns = new_cols
         st.session_state.df = df
-        st.experimental_rerun()
+        st.rerun()
 
     st.write("手動で修正が必要な場合は以下を書き換えてください。")
     
@@ -56,7 +56,7 @@ elif st.session_state.step == 2:
         df.columns = new_names
         st.session_state.df = df 
         st.session_state.step = 3
-        st.experimental_rerun()
+        st.rerun()
 
 # --- ③チャンネル名の確認セクション ---
 elif st.session_state.step == 3:
@@ -70,7 +70,7 @@ elif st.session_state.step == 3:
     
     if st.button("MNEデータ形式へ変換"):
         st.session_state.step = 4
-        st.experimental_rerun()
+        st.rerun()
 
 elif st.session_state.step == 4:
     st.subheader("④MNE形式への変換と電極設定")
@@ -117,7 +117,7 @@ elif st.session_state.step == 4:
             st.session_state.step = 5
             # 次のステップへ行くのでフラグをリセットしておく（任意）
             st.session_state.is_converted = False 
-            st.experimental_rerun()
+            st.rerun()
 # --- ⑤波形の確認セクション ---
 elif st.session_state.step == 5:
     st.subheader("⑤全体波形の確認")
@@ -146,7 +146,7 @@ elif st.session_state.step == 5:
     
     if st.button("次へ（前処理：フィルタリング）"):
         st.session_state.step = 6
-        st.experimental_rerun()
+        st.rerun()
 
 elif st.session_state.step == 6:
     st.subheader("⑥トリガー（イベント）の抽出（リアルタイム設定）")
@@ -199,7 +199,7 @@ elif st.session_state.step == 6:
             st.session_state.events_all = events_all
             st.session_state.event_id = {'S1': 1, 'S2': 2}
             st.session_state.step = 7
-            st.experimental_rerun()
+            st.rerun()
     else:
         st.warning("イベントが検出されていません。しきい値を下げてみてください。")
 
@@ -258,7 +258,7 @@ elif st.session_state.step == 7:
         # ここでボタンを外に出す
         if st.button("目視チェックを開始する"):
             st.session_state.step = 8 # 目視チェック専用のサブステップへ
-            st.experimental_rerun()
+            st.rerun()
 
 elif st.session_state.step == 8:
     st.subheader("⑧：試行ごとの手動チェック（不備記録確認）")
@@ -320,7 +320,7 @@ elif st.session_state.step == 8:
         if st.button("✅ 採用して次へ"):
             if idx < n_epochs - 1:
                 st.session_state.epoch_idx += 1
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.session_state.all_checked = True # 完了フラグ
 
@@ -330,7 +330,7 @@ elif st.session_state.step == 8:
                 st.session_state.bad_epochs.append(idx)
             if idx < n_epochs - 1:
                 st.session_state.epoch_idx += 1
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.session_state.all_checked = True # 完了フラグ
     
@@ -341,12 +341,12 @@ elif st.session_state.step == 8:
             # すべてチェック済みフラグを立てて、最後のインデックスへ飛ばす
             st.session_state.epoch_idx = n_epochs - 1
             st.session_state.all_checked = True
-            st.experimental_rerun()
+            st.rerun()
             
         if st.button("全棄却（テスト用）"):
             st.session_state.bad_epochs = list(range(n_epochs))
             st.session_state.all_checked = True
-            st.experimental_rerun()
+            st.rerun()
 
     # 5. 全試行の確認が終わったら確定ボタンを出す
     if st.session_state.get("all_checked", False):
@@ -358,7 +358,7 @@ elif st.session_state.step == 8:
             epochs.drop(st.session_state.bad_epochs)
             st.session_state.epochs = epochs
             st.session_state.step = 9
-            st.experimental_rerun()
+            st.rerun()
 
 elif st.session_state.step == 9:
     st.subheader("⑨加算平均（ERPの算出と比較）")
@@ -429,4 +429,4 @@ elif st.session_state.step == 9:
     if st.button("最初に戻る"):
         # セッションをクリアしてステップ1へ 
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
