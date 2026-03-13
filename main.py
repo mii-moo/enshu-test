@@ -53,8 +53,9 @@ elif st.session_state.step == 2:
 
     df = st.session_state.df
 
-    st.write("「 Fz\」のように、半角スペースが入っていたら消してください。また、EXTはS1、EXT.1はS2に変更してください")
-    
+    st.write("チャンネル名に「 Fz」など、半角スペースが含まれていたら消してください。")
+    st.write("また、EXTはS1、EXT.1はS2に変更してください。")
+             
     input_cols = st.columns(4)
     new_names = []
     
