@@ -10,6 +10,20 @@ st.title("ERP解析演習：マニュアル")
 if "step" not in st.session_state:
     st.session_state.step = 1
 
+# --- 「前のステップへ戻る」共通ボタン関数 ---
+def back_button(prev_step, reset_keys=None):
+    """
+    前のステップへ戻るボタンを表示する。
+    reset_keys: 戻る際にリセットしたいセッションキーのリスト
+    """
+    if st.button("← 前のステップへ戻る"):
+        if reset_keys:
+            for key in reset_keys:
+                if key in st.session_state:
+                    del st.session_state[key]
+        st.session_state.step = prev_step
+        st.rerun()
+
 # --- ①データの読み込みセクション ---
 if st.session_state.step == 1:
     st.subheader("①データの読み込み")
@@ -28,10 +42,15 @@ if st.session_state.step == 1:
         if st.button("チャンネル名変更へ進む"):
             st.session_state.step = 2
             st.rerun()
+            
 
 # --- ②チャンネル名の変更セクション ---
 elif st.session_state.step == 2:
     st.subheader("②チャンネル名の変更")
+
+    # ↓ 戻るボタン（dfはステップ1で読み込んだものを維持）
+    back_button(prev_step=1)
+
     df = st.session_state.df
 
     # --- 自動置換ボタンの設置（これがあると楽です！） ---
@@ -61,6 +80,10 @@ elif st.session_state.step == 2:
 # --- ③チャンネル名の確認セクション ---
 elif st.session_state.step == 3:
     st.subheader("③変更結果の確認")
+
+    # ↓ 戻るボタン
+    back_button(prev_step=2)
+
     df = st.session_state.df
     
     st.success("チャンネル名を変更しました。")
@@ -74,6 +97,10 @@ elif st.session_state.step == 3:
 
 elif st.session_state.step == 4:
     st.subheader("④MNE形式への変換と電極設定")
+
+    # ↓ 戻るボタン（変換フラグもリセット）
+    back_button(prev_step=3, reset_keys=["is_converted", "raw"])
+
     df = st.session_state.df
     
     # 変換済みかどうかのフラグを初期化
@@ -118,20 +145,24 @@ elif st.session_state.step == 4:
             # 次のステップへ行くのでフラグをリセットしておく（任意）
             st.session_state.is_converted = False 
             st.rerun()
+
 # --- ⑤波形の確認セクション ---
 elif st.session_state.step == 5:
     st.subheader("⑤全体波形の確認")
+
+    # ↓ 戻るボタン
+    back_button(prev_step=4)
+
     raw = st.session_state.raw
 
     # 1. 全体時間を計算
     total_duration = raw.times[-1]
     
     # 2. MNEのプロット機能で図を作成
-    # scalings は MNEの内部単位（V）に対して指定するため、50μVなら 50e-6 で正解です！
     fig = raw.plot(
         duration=total_duration,
         n_channels=len(raw.ch_names),
-        scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1}, # stimはそのまま
+        scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1},
         show_scrollbars=False,
         show=False
     )
@@ -150,11 +181,15 @@ elif st.session_state.step == 5:
 
 elif st.session_state.step == 6:
     st.subheader("⑥トリガー（イベント）の抽出（リアルタイム設定）")
+
+    # ↓ 戻るボタン（イベント情報をリセット）
+    back_button(prev_step=5, reset_keys=["events_all", "event_id"])
+
     raw = st.session_state.raw
 
     st.write("スライダーを動かして、S1/S2の立ち上がりに正しく線が重なるように調整してください。")
 
-    # 1. スライダー（これ自体がトリガーになり、動かすたびに再実行されます）
+    # 1. スライダー
     my_threshold = st.slider("二値化のしきい値（V）", 0.0, 0.1, 0.05, step=0.005, format="%.3f")
 
     # 2. 抽出処理（ボタンなしで毎回実行）
@@ -175,7 +210,6 @@ elif st.session_state.step == 6:
         if len(evs_s2) > 0:
             evs_s2[:, 2] = 2
         
-        # 片方しか取れていない場合も考慮
         events_all = np.concatenate([evs_s1, evs_s2]) if (len(evs_s1) > 0 and len(evs_s2) > 0) else (evs_s1 if len(evs_s1) > 0 else evs_s2)
         events_all = events_all[np.argsort(events_all[:, 0])]
 
@@ -194,7 +228,6 @@ elif st.session_state.step == 6:
         st.pyplot(fig)
 
         # 4. 「次へ」ボタン
-        # このボタンを押した時だけデータを保存してステップを進める
         if st.button("このしきい値で確定してエポッキングへ"):
             st.session_state.events_all = events_all
             st.session_state.event_id = {'S1': 1, 'S2': 2}
@@ -205,6 +238,10 @@ elif st.session_state.step == 6:
 
 elif st.session_state.step == 7:
     st.subheader("⑦エポッキングと目視チェック")
+
+    # ↓ 戻るボタン（エポック情報をリセット）
+    back_button(prev_step=6, reset_keys=["is_epoched", "epochs", "epoch_idx", "bad_epochs", "all_checked"])
+
     raw = st.session_state.raw
     events_all = st.session_state.events_all
     event_id = st.session_state.event_id
@@ -224,7 +261,6 @@ elif st.session_state.step == 7:
         )
         st.session_state.epochs = epochs
         st.session_state.is_epoched = True
-        # 目視チェック用のインデックス等も初期化
         st.session_state.epoch_idx = 0
         st.session_state.bad_epochs = []
 
@@ -233,7 +269,7 @@ elif st.session_state.step == 7:
         epochs = st.session_state.epochs
         st.success(f"エポッキング完了: {len(epochs)} 試行")
 
-        # 重ね描きのプレビュー（確認用なので少し小さめでもOK）
+        # 重ね描きのプレビュー
         with st.expander("全試行の重ね描きを確認する"):
             data_uv = epochs.get_data() * 1e6
             times = epochs.times * 1000
@@ -255,13 +291,16 @@ elif st.session_state.step == 7:
         st.write("### 次のステップ：1試行ずつの目視チェック")
         st.write("EVENTチャンネルの不備記録や、脳波の大きなノイズを確認して採用・棄却を決定します。")
         
-        # ここでボタンを外に出す
         if st.button("目視チェックを開始する"):
-            st.session_state.step = 8 # 目視チェック専用のサブステップへ
+            st.session_state.step = 8
             st.rerun()
 
 elif st.session_state.step == 8:
     st.subheader("⑧：試行ごとの手動チェック（不備記録確認）")
+
+    # ↓ 戻るボタン（目視チェックの進捗をリセット）
+    back_button(prev_step=7, reset_keys=["epoch_idx", "bad_epochs", "all_checked"])
+
     epochs = st.session_state.epochs
     
     if "epoch_idx" not in st.session_state:
@@ -299,7 +338,7 @@ elif st.session_state.step == 8:
         event_idx = epochs.ch_names.index('EVENT')
         ax2.plot(times, data[event_idx], color='purple', label='Error Trigger')
         ax2.set_ylabel("EVENT")
-        ax2.set_ylim(-0.1, 1.1) # 二値化されている想定
+        ax2.set_ylim(-0.1, 1.1)
         ax2.fill_between(times, 0, data[event_idx], color='purple', alpha=0.2)
         ax2.legend(loc='upper right')
     else:
@@ -313,7 +352,7 @@ elif st.session_state.step == 8:
     if 'EVENT' in epochs.ch_names and np.any(data[event_idx] > 0.5):
         st.warning("⚠️ この試行中、EVENTチャンネルに不備記録の反応があります。棄却を検討してください。")
 
-    # 4. 操作ボタン（前回同様）
+    # 4. 操作ボタン
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -322,7 +361,7 @@ elif st.session_state.step == 8:
                 st.session_state.epoch_idx += 1
                 st.rerun()
             else:
-                st.session_state.all_checked = True # 完了フラグ
+                st.session_state.all_checked = True
 
     with col2:
         if st.button("❌ 棄却して次へ"):
@@ -332,13 +371,12 @@ elif st.session_state.step == 8:
                 st.session_state.epoch_idx += 1
                 st.rerun()
             else:
-                st.session_state.all_checked = True # 完了フラグ
+                st.session_state.all_checked = True
     
     st.write("---")
-    # 開発用メニュー（サイドバーに入れるか、目立たない場所に配置）
+    # 開発用メニュー
     with st.expander("🛠️ 開発用ショートカット"):
         if st.button("残りすべての試行を「採用」にする"):
-            # すべてチェック済みフラグを立てて、最後のインデックスへ飛ばす
             st.session_state.epoch_idx = n_epochs - 1
             st.session_state.all_checked = True
             st.rerun()
@@ -362,6 +400,10 @@ elif st.session_state.step == 8:
 
 elif st.session_state.step == 9:
     st.subheader("⑨加算平均（ERPの算出と比較）")
+
+    # ↓ 戻るボタン（エポック情報をリセットしてステップ7からやり直し）
+    back_button(prev_step=7, reset_keys=["is_epoched", "epochs", "epoch_idx", "bad_epochs", "all_checked"])
+
     epochs = st.session_state.epochs
 
     # 1. 各条件の平均（Evoked）を算出
@@ -376,10 +418,8 @@ elif st.session_state.step == 9:
     # 3. グラフの描画
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # タイム軸をmsに変換
     times = evoked_s1.times * 1000 
     
-    # 各データの取得（uV単位）
     ch_idx = evoked_s1.ch_names.index(target_ch)
     val_s1 = evoked_s1.data[ch_idx] * 1e6
     val_s2 = evoked_s2.data[ch_idx] * 1e6
@@ -387,8 +427,7 @@ elif st.session_state.step == 9:
     ax.plot(times, val_s1, color='red', label='S1 (Stimulus)', lw=2)
     ax.plot(times, val_s2, color='orange', label='S2 (Response)', lw=2)
 
-    # 装飾
-    ax.axvline(0, color='black', lw=1) # 刺激時点
+    ax.axvline(0, color='black', lw=1)
     ax.axhline(0, color='black', lw=0.5, alpha=0.5)
     ax.set_title(f"ERP Comparison at {target_ch}")
     ax.set_xlabel("Time (ms)")
@@ -396,17 +435,14 @@ elif st.session_state.step == 9:
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    # 脳波の慣習に合わせて、y軸のプラスマイナスを反転させるオプション
     if st.checkbox("陰性を上向きに表示（脳波の伝統的表示）"):
         ax.invert_yaxis()
 
     st.pyplot(fig)
     
-    # 1. 保存用データの作成
-    # 時間軸、S1の平均、S2の平均をまとめたDataFrameを作る
+    # 保存用データの作成
     times = evoked_s1.times * 1000  # ms
     
-    # 全チャンネルのデータを一度に保存するための準備
     export_df = pd.DataFrame({"Time_ms": times})
     
     for ch_name in evoked_s1.ch_names:
@@ -417,7 +453,6 @@ elif st.session_state.step == 9:
     st.write("各チャンネルの加算平均値（μV）をCSVとしてダウンロードできます。")
     st.dataframe(export_df.head())
 
-    # 2. Streamlitのダウンロードボタン
     csv = export_df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="解析結果をCSVでダウンロード",
@@ -427,6 +462,5 @@ elif st.session_state.step == 9:
     )
 
     if st.button("最初に戻る"):
-        # セッションをクリアしてステップ1へ 
         st.session_state.clear()
         st.rerun()
