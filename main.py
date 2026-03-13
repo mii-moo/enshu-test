@@ -427,6 +427,6 @@ elif st.session_state.step == 9:
     )
 
     if st.button("最初に戻る"):
-        # セッションをクリアしてステップ1へ
+        # セッションをクリアしてステップ1へ 
         st.session_state.clear()
         st.experimental_rerun()
