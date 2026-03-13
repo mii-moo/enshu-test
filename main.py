@@ -53,15 +53,7 @@ elif st.session_state.step == 2:
 
     df = st.session_state.df
 
-    # --- 自動置換ボタンの設置（これがあると楽です！） ---
-    if st.button("推奨されるルールで自動置換する"):
-        # スペース削除、EXT -> S1, EXT.1 -> S2 のルールを適用
-        new_cols = [c.strip().replace("EXT.1", "S2").replace("EXT", "S1") for c in df.columns]
-        df.columns = new_cols
-        st.session_state.df = df
-        st.rerun()
-
-    st.write("手動で修正が必要な場合は以下を書き換えてください。")
+    st.write("「 Fz\」のように、半角スペースが入っていたら消してください。また、EXTはS1、EXT.1はS2に変更してください")
     
     input_cols = st.columns(4)
     new_names = []
