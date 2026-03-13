@@ -7,5 +7,5 @@
       "onAutoForward": "notify" 
     }
   },
-  "postStartCommand": "streamlit run main.py"
+  "postStartCommand": "streamlit run main.py" 
 }
