@@ -1,0 +1,5 @@
+streamlit
+pandas
+mne
+matplotlib.pyplot
+numpy
