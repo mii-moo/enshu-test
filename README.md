@@ -2,7 +2,7 @@
 
 1. 下のボタン(Open in GitHub Codespaces)をクリック
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mii-moo/test-codespaces)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mii-moo/enshu-test)
 
 2. 緑のボタン(Create Codespace)をクリック
 
