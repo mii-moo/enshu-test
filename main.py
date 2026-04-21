@@ -4,7 +4,7 @@ import mne
 import matplotlib.pyplot as plt
 import numpy as np
 
-st.title("ERP解析演習：マニュアル")
+st.title("ERP算出ツール")
 
 # --- 画面の状態を管理するフラグ ---
 if "step" not in st.session_state:
@@ -12,10 +12,6 @@ if "step" not in st.session_state:
 
 # --- 「前のステップへ戻る」共通ボタン関数 ---
 def back_button(prev_step, reset_keys=None):
-    """
-    前のステップへ戻るボタンを表示する。
-    reset_keys: 戻る際にリセットしたいセッションキーのリスト
-    """
     if st.button("← 前のステップへ戻る"):
         if reset_keys:
             for key in reset_keys:
@@ -24,436 +20,386 @@ def back_button(prev_step, reset_keys=None):
         st.session_state.step = prev_step
         st.rerun()
 
-# --- ①データの読み込みセクション ---
+# STEP1----------------------------------------------------------------------------------------------------
 if st.session_state.step == 1:
-    st.subheader("①データの読み込み")
-    uploaded_file = st.file_uploader("CSVファイルを選択してください。", type="csv")
+    
+    #【表示】全体の説明
+    st.markdown("今手元にあるデータは、オドボール課題中の **脳波(EEG)** です")
+    st.markdown("これを刺激前後で区切って加算平均することで、 **事象関連電位(ERP)** に変換しましょう")
+    st.markdown("")
+    st.markdown("")
+    st.markdown("具体的には以下のステップで進めます")
+    st.markdown("　①データの読み込み")
+    st.markdown("　②波形の確認")
+    st.markdown("　③エポッキング準備")
+    st.markdown("　④エポッキング")
+    st.markdown("　⑤ノイズエポック除去")
+    st.markdown("　⑥加算平均")
+    st.write("---")
+    
+    #【処理】進む
+    if st.button("①データの読み込みへ進む"):
+        st.session_state.step = 2
+        st.rerun()
+# ---------------------------------------------------------------------------------------------------------
 
-    if uploaded_file is not None:
-        # 読み込み
-        df = pd.read_csv(uploaded_file, sep='\t')
-        st.session_state.df = df # 先に保存しておく
-        
-        st.write("データの先頭5行を表示しています。")
-        st.dataframe(df.head())
-        
-        st.info("現時点のチャンネル名には不要なスペースや分かりにくい名前が含まれています。")
-        
-        if st.button("チャンネル名変更へ進む"):
-            st.session_state.step = 2
-            st.rerun()
-            
-
-# --- ②チャンネル名の変更セクション ---
+# STEP2----------------------------------------------------------------------------------------------------
 elif st.session_state.step == 2:
-    st.subheader("②チャンネル名の変更")
-
-    # ↓ 戻るボタン（dfはステップ1で読み込んだものを維持）
+    st.subheader("①データの読み込み")
+    st.markdown("")
+    
+    #【処理】戻る
     back_button(prev_step=1)
-
-    df = st.session_state.df
-
-    st.write("チャンネル名に「 Fz」など、半角スペースが含まれていたら消してください。")
-    st.write("また、EXTはS1、EXT.1はS2に変更してください。")
-             
-    input_cols = st.columns(4)
-    new_names = []
     
-    for i, old_name in enumerate(df.columns):
-        with input_cols[i % 4]:
-            user_input = st.text_input(f"列 {i+1}", value=old_name, key=f"input_{i}")
-            new_names.append(user_input)
-    
-    if st.button("確定して次へ"):
-        df.columns = new_names
-        st.session_state.df = df 
-        st.session_state.step = 3
-        st.rerun()
+    #【表示】ファイルアップフォームを表示
+    st.markdown("「Browse files」から脳波データ（例: sub01_28.CSV）を読み込んでください")
+    uploaded_file = st.file_uploader("CSVのアップロードフォーム",type="csv",label_visibility="collapsed")
 
-# --- ③チャンネル名の確認セクション ---
-elif st.session_state.step == 3:
-    st.subheader("③変更結果の確認")
-
-    # ↓ 戻るボタン
-    back_button(prev_step=2)
-
-    df = st.session_state.df
-    
-    st.success("チャンネル名を変更しました。")
-    st.dataframe(df.head())
-    
-    st.write("これを脳波データ（MNEオブジェクト）として扱うための形式に変えましょう。")
-    
-    if st.button("MNEデータ形式へ変換"):
-        st.session_state.step = 4
-        st.rerun()
-
-elif st.session_state.step == 4:
-    st.subheader("④MNE形式への変換と電極設定")
-
-    # ↓ 戻るボタン（変換フラグもリセット）
-    back_button(prev_step=3, reset_keys=["is_converted", "raw"])
-
-    df = st.session_state.df
-    
-    # 変換済みかどうかのフラグを初期化
-    if "is_converted" not in st.session_state:
-        st.session_state.is_converted = False
-
-    ch_names = ['Fz', 'Cz', 'Pz', 'EOG', 'S1', 'S2']
-    ch_types = ['eeg', 'eeg', 'eeg', 'eog', 'stim', 'stim']
-    sfreq = 500
-    
-    st.write("以下の設定でMNEデータを作成します：")
-    st.write(f"- チャンネル: {', '.join(ch_names)}")
-    st.write(f"- サンプリング周波数: {sfreq} Hz")
-
-    # --- ボタン1：変換を実行 ---
-    if st.button("変換を実行"):
+    #【処理】データがアップされたら
+    if uploaded_file is not None:
         try:
-            info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
+            #【処理】元のcsvの名前を覚えておく
+            st.session_state.uploaded_filename = uploaded_file.name
+            base_name = uploaded_file.name.rsplit(".", 1)[0]
+            st.session_state.base_filename = base_name
+            
+            #【処理】データを読み込み、スペースを取り除く
+            df = pd.read_csv(uploaded_file, sep='\t')
+            df.columns = (df.columns.str.replace(" ", "").str.strip())
+            st.session_state.df = df
+            
+            #【表示】データの先頭を表示する
+            st.success("データの読み込みに成功しました！")
+            st.markdown("")
+            st.markdown("")
+            st.markdown("")
+            st.markdown("読み込んだデータの先頭５行を表示しています")
+            st.dataframe(df.head())
+
+            #【処理】MNEに変換する
+            ch_names = ['Fz', 'Cz', 'Pz', 'EOG', 'S1', 'S2']
+            ch_types = ['eeg', 'eeg', 'eeg', 'eog', 'stim', 'stim']
+            sfreq = 500  
+            info = mne.create_info(ch_names=ch_names,sfreq=sfreq,ch_types=ch_types)
             raw_data = df[ch_names].values.T / 1e6
             raw = mne.io.RawArray(raw_data, info)
             montage = mne.channels.make_standard_montage('standard_1020')
             raw.set_montage(montage)
-            
             st.session_state.raw = raw
-            st.session_state.is_converted = True # 変換成功フラグを立てる
-            
+            st.write("---")
+
+            #【処理】進む
+            if st.button("②波形の確認へ進む"):
+                st.session_state.step = 3
+                st.rerun()
+
+        #【処理】念の為のエラー処理
         except KeyError as e:
             st.error(f"エラー：CSVの中に列名 {e} が見つかりません。")
+        except Exception as e:
+            st.error(f"予期しないエラーが発生しました: {e}")
+# ---------------------------------------------------------------------------------------------------------
 
-    # --- 変換が終わっていたら表示するセクション ---
-    if st.session_state.is_converted:
-        st.success("MNE形式への変換が完了しました！")
-        
-        st.write("### 電極配置の確認")
-        temp_raw = st.session_state.raw.copy().pick_types(eeg=True)
-        fig = temp_raw.plot_sensors(show_names=True, show=False)
-        st.pyplot(fig)
-        
-        # ステップ移動ボタンは「変換ボタン」の外に出す！
-        if st.button("次へ（波形確認）"):
-            st.session_state.step = 5
-            # 次のステップへ行くのでフラグをリセットしておく（任意）
-            st.session_state.is_converted = False 
-            st.rerun()
+# STEP3----------------------------------------------------------------------------------------------------
+elif st.session_state.step == 3:
+    st.subheader("②波形の確認")
 
-# --- ⑤波形の確認セクション ---
-elif st.session_state.step == 5:
-    st.subheader("⑤全体波形の確認")
-
-    # ↓ 戻るボタン
-    back_button(prev_step=4)
-
-    raw = st.session_state.raw
-
-    # 1. 全体時間を計算
-    total_duration = raw.times[-1]
+    #【処理】戻る
+    back_button(prev_step=2)
     
-    # 2. MNEのプロット機能で図を作成
-    fig = raw.plot(
-        duration=total_duration,
-        n_channels=len(raw.ch_names),
-        scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1},
-        show_scrollbars=False,
-        show=False
-    )
-
-    # 3. サイズの調整
+    #【処理】mneデータを描画するための前処理
+    raw = st.session_state.raw
+    total_duration = raw.times[-1]
+    fig = raw.plot(duration=total_duration,n_channels=len(raw.ch_names),scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1},show_scrollbars=False,show=False)
     fig.set_size_inches(20, 6) 
     
-    # 4. Streamlitへの表示
+    #【表示】全体の波形とそれの説明を出す
+    st.markdown("図にカーソルを合わせると出てくるポップから、表示を大きくできます")
     st.pyplot(fig)
-
-    st.info(f"データの全期間（{total_duration:.1f} 秒）を表示しています。")
+    st.markdown("上から、正中前頭部(Fz)、正中中心部(Cz)、正中頭頂部(Pz)、眼電図(EOG)、標的刺激(S1)、標準刺激(S2)となっているはずです")
+    st.write("---")
     
-    if st.button("次へ（前処理：フィルタリング）"):
-        st.session_state.step = 6
+    #【処理】次へ進む
+    if st.button("③エポッキング準備に進む"):
+        st.session_state.step = 4
         st.rerun()
+# ---------------------------------------------------------------------------------------------------------
 
-elif st.session_state.step == 6:
-    st.subheader("⑥トリガー（イベント）の抽出（リアルタイム設定）")
+# STEP4----------------------------------------------------------------------------------------------------
+elif st.session_state.step == 4:
+    st.subheader("③エポッキング準備")
 
-    # ↓ 戻るボタン（イベント情報をリセット）
-    back_button(prev_step=5, reset_keys=["events_all", "event_id"])
-
+    #【処理】戻る　そのときステップ内で設定した値はリセットする
+    back_button(prev_step=3, reset_keys=["events_all", "event_id"])
+    
+    #【表示】スライダーの使い方
+    st.markdown("スライダーを動かして、S1とS2のトリガ（ㄇ）の立ち上がりに線が引かれるようにしてください")
+    st.markdown("S1に赤の線、S2にオレンジの線が引かれることを確認してください")
+    st.markdown("現在の検出数が　S1 = 40試行 / S2 = 160試行　か　S1 = 100試行 / S2 = 100試行　になるようにしてください")
+    
+    #【処理】閾値を変化させる
+    my_threshold = st.slider("", 0.0, 0.05, 0.03, step=0.001, format="%.3f")
     raw = st.session_state.raw
-
-    st.write("スライダーを動かして、S1/S2の立ち上がりに正しく線が重なるように調整してください。")
-
-    # 1. スライダー
-    my_threshold = st.slider("二値化のしきい値（V）", 0.0, 0.1, 0.05, step=0.005, format="%.3f")
-
-    # 2. 抽出処理（ボタンなしで毎回実行）
     raw_stim = raw.copy()
     def binarize_stim(data):
         return (data > my_threshold).astype(float)
-
     raw_stim.apply_function(binarize_stim, picks=['S1', 'S2'])
-
     evs_s1 = mne.find_events(raw_stim, stim_channel='S1', output='onset', verbose=False)
     evs_s2 = mne.find_events(raw_stim, stim_channel='S2', output='onset', verbose=False)
 
-    # 3. 結果の表示
+    #【処理】何かしら検出された場合
     if len(evs_s1) > 0 or len(evs_s2) > 0:
-        st.success(f"現在の検出数： S1 = {len(evs_s1)}回 / S2 = {len(evs_s2)}回")
+        #【表示】現在のスライダー位置での検出数を表示する
+        st.success(f"現在の検出数： S1 = {len(evs_s1)}試行 / S2 = {len(evs_s2)}試行")
         
-        # IDの付与と統合
+        #【処理】S1とS2でそれぞれ閾値のフラグを立てて、統合する
         if len(evs_s2) > 0:
             evs_s2[:, 2] = 2
-        
         events_all = np.concatenate([evs_s1, evs_s2]) if (len(evs_s1) > 0 and len(evs_s2) > 0) else (evs_s1 if len(evs_s1) > 0 else evs_s2)
         events_all = events_all[np.argsort(events_all[:, 0])]
 
-        # 波形のプロット
+        #【表示】更新後の波形
         event_color = {1: 'red', 2: 'orange'}
-        fig = raw_stim.plot(
-            duration=raw_stim.times[-1],
-            n_channels=len(raw_stim.ch_names),
-            scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1},
-            events=events_all,
-            event_color=event_color,
-            show_scrollbars=False,
-            show=False
-        )
+        fig = raw_stim.plot(duration=raw_stim.times[-1],n_channels=len(raw_stim.ch_names),scalings={'eeg': 50e-6, 'eog': 50e-6, 'stim': 1},events=events_all,event_color=event_color,event_id=None,show_scrollbars=False,show=False)
         fig.set_size_inches(15, 6)
         st.pyplot(fig)
+        st.write("---")
 
-        # 4. 「次へ」ボタン
-        if st.button("このしきい値で確定してエポッキングへ"):
+        #【処理】次へ進む
+        if st.button("④エポッキングに進む"):
             st.session_state.events_all = events_all
             st.session_state.event_id = {'S1': 1, 'S2': 2}
-            st.session_state.step = 7
+            st.session_state.step = 5
             st.rerun()
+
+    #【処理】何も検出されなかった場合
     else:
-        st.warning("イベントが検出されていません。しきい値を下げてみてください。")
+        st.warning("イベントが検出されていません　スライダーを下げてみてください")
+# ---------------------------------------------------------------------------------------------------------
 
-elif st.session_state.step == 7:
-    st.subheader("⑦エポッキングと目視チェック")
+# STEP5----------------------------------------------------------------------------------------------------
+elif st.session_state.step == 5:
+    st.subheader("④エポッキング")
 
-    # ↓ 戻るボタン（エポック情報をリセット）
-    back_button(prev_step=6, reset_keys=["is_epoched", "epochs", "epoch_idx", "bad_epochs", "all_checked"])
+    #【処理】戻る　そのときステップ内で設定した値はリセットする
+    back_button(prev_step=4, reset_keys=["epochs", "epoch_idx", "bad_epochs", "all_checked"])
 
+    #【処理】③エポッキング準備で用意したトリガーを使って、エポッキングする
     raw = st.session_state.raw
     events_all = st.session_state.events_all
     event_id = st.session_state.event_id
-
-    # エポック作成済みフラグ
-    if "is_epoched" not in st.session_state:
-        st.session_state.is_epoched = False
-
     tmin, tmax = -0.2, 0.6
-
-    # --- ボタン：エポッキングを実行 ---
-    if st.button("エポッキングを実行"):
+    if "epochs" not in st.session_state:
         epochs = mne.Epochs(
             raw, events_all, event_id=event_id,
             tmin=tmin, tmax=tmax, baseline=(None, 0),
             preload=True, verbose=False
         )
         st.session_state.epochs = epochs
-        st.session_state.is_epoched = True
         st.session_state.epoch_idx = 0
         st.session_state.bad_epochs = []
-
-    # --- エポック作成後の表示 ---
-    if st.session_state.is_epoched:
-        epochs = st.session_state.epochs
-        st.success(f"エポッキング完了: {len(epochs)} 試行")
-
-        # 重ね描きのプレビュー
-        with st.expander("全試行の重ね描きを確認する"):
-            data_uv = epochs.get_data() * 1e6
-            times = epochs.times * 1000
-            event_codes = epochs.events[:, 2]
-            target_chs = ['Fz', 'Cz', 'Pz']
-            
-            fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-            for ax, ch_name in zip(axes, target_chs):
-                ch_idx = epochs.ch_names.index(ch_name)
-                for i in range(len(data_uv)):
-                    c = 'red' if event_codes[i] == 1 else 'orange'
-                    ax.plot(times, data_uv[i, ch_idx, :], color=c, lw=0.5, alpha=0.3)
-                ax.set_title(ch_name)
-                ax.axvline(0, color='black', lw=1)
-            plt.tight_layout()
-            st.pyplot(fig)
-
-        st.write("---")
-        st.write("### 次のステップ：1試行ずつの目視チェック")
-        st.write("EVENTチャンネルの不備記録や、脳波の大きなノイズを確認して採用・棄却を決定します。")
-        
-        if st.button("目視チェックを開始する"):
-            st.session_state.step = 8
-            st.rerun()
-
-elif st.session_state.step == 8:
-    st.subheader("⑧：試行ごとの手動チェック（不備記録確認）")
-
-    # ↓ 戻るボタン（目視チェックの進捗をリセット）
-    back_button(prev_step=7, reset_keys=["epoch_idx", "bad_epochs", "all_checked"])
-
     epochs = st.session_state.epochs
-    
+    st.success(f"エポッキング完了: {len(epochs)} 試行")
+    st.markdown("200試行になっていることを確認してください")
+
+    #【表示】４つの波形を表示し、ノイズエポックの存在を知らせる
+    data_uv = epochs.get_data() * 1e6
+    times = epochs.times * 1000
+    event_codes = epochs.events[:, 2]
+    target_chs = ['Fz', 'Cz', 'Pz', 'EOG']
+    fig, axes = plt.subplots(4, 1, figsize=(10, 10), sharex=True)
+    for ax, ch_name in zip(axes, target_chs):
+        ch_idx = epochs.ch_names.index(ch_name)
+        for i in range(len(data_uv)):
+            c = 'red' if event_codes[i] == 1 else 'orange'
+            ax.plot(times, data_uv[i, ch_idx, :], color=c, lw=0.5, alpha=0.3)
+        ax.set_title(ch_name)
+        ax.axvline(0, color='black', lw=1)
+    plt.tight_layout()
+    st.pyplot(fig)
+    st.markdown("全体と大きく外れている波形はありませんか？　ノイズエポックを除去しましょう")
+    st.write("---")
+
+    #【処理】次へ進む
+    if st.button("⑤ノイズエポック除去に進む"):
+        st.session_state.step = 6
+        st.rerun()
+# ---------------------------------------------------------------------------------------------------------
+
+# STEP6----------------------------------------------------------------------------------------------------
+elif st.session_state.step == 6:
+    st.subheader("⑤ノイズエポック除去")
+
+    #【処理】戻る　そのときステップ内で設定した値はリセットする
+    back_button(prev_step=5, reset_keys=["epoch_idx", "epoch_status", "all_checked"])
+
+    #【処理】それぞれのエポックを初期状態として0にする
+    epochs = st.session_state.epochs
     if "epoch_idx" not in st.session_state:
         st.session_state.epoch_idx = 0
-    if "bad_epochs" not in st.session_state:
-        st.session_state.bad_epochs = []
-
+    if "epoch_status" not in st.session_state:
+        st.session_state.epoch_status = {}
     idx = st.session_state.epoch_idx
     n_epochs = len(epochs)
 
-    st.write(f"試行 {idx + 1} / {n_epochs}")
-    st.progress((idx + 1) / n_epochs)
+    #【表示】表示中の試行をスライダーで表示する
+    new_idx_display = st.slider(
+        "試行番号",
+        min_value=1,
+        max_value=n_epochs,
+        value=idx + 1,
+        step=1
+    )
 
-    # 1. データの準備
+    #【表示】現在の試行を判定状況と現在の進捗を表示する
+    new_idx = new_idx_display - 1
+    if new_idx != idx:
+        st.session_state.epoch_idx = new_idx
+        st.rerun()
+    status = st.session_state.epoch_status.get(idx, 0)
+    if status == 1:
+        st.success("この試行は採用されています")
+    elif status == -1:
+        st.error("この試行は棄却されています")
+    else:
+        st.info("この試行は未判定です")
+    n_accept = sum(1 for v in st.session_state.epoch_status.values() if v == 1)
+    n_reject = sum(1 for v in st.session_state.epoch_status.values() if v == -1)
+    st.write(f"採用: {n_accept} / 棄却: {n_reject} / 未判定: {n_epochs - n_accept - n_reject}")
+    
+    #【表示】波形を表示する
     data = epochs.get_data()[idx]
     times = epochs.times * 1000
-    
-    # 2. 描画（2段構成：上が脳波、下が不備トリガー）
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True, 
-                                   gridspec_kw={'height_ratios': [3, 1]})
-
-    # --- 上段：脳波 (EEG) ---
-    for ch_idx, ch_name in enumerate(epochs.ch_names):
-        if ch_name in ['Fz', 'Cz', 'Pz']:
-            ax1.plot(times, data[ch_idx] * 1e6, label=ch_name)
-    
-    ax1.axvline(0, color='black', linestyle='--')
-    ax1.set_ylim(-100, 100)
-    ax1.set_ylabel("EEG (μV)")
-    ax1.set_title(f"Trial {idx + 1} - Stimulus: {'S1' if epochs.events[idx, 2] == 1 else 'S2'}")
-    ax1.legend(loc='upper right')
-
-    # --- 下段：不備記録 (EVENT) ---
-    if 'EVENT' in epochs.ch_names:
-        event_idx = epochs.ch_names.index('EVENT')
-        ax2.plot(times, data[event_idx], color='purple', label='Error Trigger')
-        ax2.set_ylabel("EVENT")
-        ax2.set_ylim(-0.1, 1.1)
-        ax2.fill_between(times, 0, data[event_idx], color='purple', alpha=0.2)
-        ax2.legend(loc='upper right')
-    else:
-        ax2.text(0.5, 0.5, "EVENT channel not found", ha='center')
-
-    ax2.set_xlabel("Time (ms)")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    target_chs = ['Fz', 'Cz', 'Pz', 'EOG']
+    for ch_name in target_chs:
+        ch_idx = epochs.ch_names.index(ch_name)
+        ax.plot(times, data[ch_idx] * 1e6, label=ch_name)
+    ax.axvline(0, color='black', linestyle='--')
+    ax.set_ylim(-100, 100)
+    ax.set_ylabel("μV")
+    ax.set_title(f"Trial {idx + 1} - Stimulus: {'S1' if epochs.events[idx, 2] == 1 else 'S2'}")
+    ax.legend(loc='upper right')
+    ax.set_xlabel("Time (ms)")
     plt.tight_layout()
     st.pyplot(fig)
 
-    # 3. 注意喚起のメッセージ
-    if 'EVENT' in epochs.ch_names and np.any(data[event_idx] > 0.5):
-        st.warning("⚠️ この試行中、EVENTチャンネルに不備記録の反応があります。棄却を検討してください。")
-
-    # 4. 操作ボタン
+    #【表示】３つのボタンを表示する
     col1, col2, col3 = st.columns(3)
-
     with col1:
-        if st.button("✅ 採用して次へ"):
+        if st.button("←前の試行に戻る"):
+            if idx > 0:
+                st.session_state.epoch_idx -= 1
+                st.rerun()
+    with col2:
+        if st.button("採用して次へ"):
+            st.session_state.epoch_status[idx] = 1
             if idx < n_epochs - 1:
                 st.session_state.epoch_idx += 1
                 st.rerun()
             else:
                 st.session_state.all_checked = True
+    with col3:
+        if st.button("棄却して次へ"):
+            st.session_state.epoch_status[idx] = -1
 
-    with col2:
-        if st.button("❌ 棄却して次へ"):
-            if idx not in st.session_state.bad_epochs:
-                st.session_state.bad_epochs.append(idx)
             if idx < n_epochs - 1:
                 st.session_state.epoch_idx += 1
                 st.rerun()
             else:
                 st.session_state.all_checked = True
     
-    st.write("---")
-    # 開発用メニュー
-    with st.expander("🛠️ 開発用ショートカット"):
-        if st.button("残りすべての試行を「採用」にする"):
-            st.session_state.epoch_idx = n_epochs - 1
-            st.session_state.all_checked = True
-            st.rerun()
-            
-        if st.button("全棄却（テスト用）"):
-            st.session_state.bad_epochs = list(range(n_epochs))
-            st.session_state.all_checked = True
-            st.rerun()
+    #【表示】全てのチェックが完了したら、完了したことを表示する
+    all_done = len(st.session_state.epoch_status) == n_epochs
+    if all_done:
+        st.success("全試行のチェックが完了しました！")
 
-    # 5. 全試行の確認が終わったら確定ボタンを出す
-    if st.session_state.get("all_checked", False):
+        bad_epochs = [i for i, v in st.session_state.epoch_status.items() if v == -1]
+        st.session_state.n_epochs_original = len(epochs.events) + len(bad_epochs)
         st.write("---")
-        st.success("すべての試行のチェックが完了しました！")
-        st.info(f"棄却する試行数: {len(st.session_state.bad_epochs)} / 総試行数: {n_epochs}")
-        if st.button("チェックを確定して加算平均へ進む"):
-            # 棄却実行
-            epochs.drop(st.session_state.bad_epochs)
+
+        #【処理】次へ進む
+        if st.button("⑥加算平均へ進む"):
+            epochs.drop(bad_epochs)
             st.session_state.epochs = epochs
-            st.session_state.step = 9
+            st.session_state.step = 7
             st.rerun()
+# ---------------------------------------------------------------------------------------------------------
 
-elif st.session_state.step == 9:
-    st.subheader("⑨加算平均（ERPの算出と比較）")
+# STEP7----------------------------------------------------------------------------------------------------
+elif st.session_state.step == 7:
+    st.subheader("⑥加算平均")
 
-    # ↓ 戻るボタン（エポック情報をリセットしてステップ7からやり直し）
-    back_button(prev_step=7, reset_keys=["is_epoched", "epochs", "epoch_idx", "bad_epochs", "all_checked"])
+    #【処理】ノイズエポック除去をはじめからやり直す　バグるから
+    if st.button("⚠️ノイズエポック除去をはじめからやり直す"):
+        st.session_state.step = 6
+        st.session_state.epoch_status = {}
+        st.session_state.epoch_idx = 0
+        st.rerun()
+    st.markdown("")
 
+    #【処理】各エポックをS1とS2に分けて平均する
     epochs = st.session_state.epochs
-
-    # 1. 各条件の平均（Evoked）を算出
     evoked_s1 = epochs['S1'].average()
     evoked_s2 = epochs['S2'].average()
-
-    st.write("S1（刺激）と S2（反応）の平均波形を比較します。")
-
-    # 2. チャンネル選択
-    target_ch = st.selectbox("表示するチャンネルを選択してください", ['Pz', 'Cz', 'Fz'])
-
-    # 3. グラフの描画
-    fig, ax = plt.subplots(figsize=(10, 6))
     
+    #【表示】試行数の表示
+    n_total = st.session_state.get("n_epochs_original", len(epochs))
+    n_accepted = len(epochs)
+    n_rejected = n_total - n_accepted
+    st.write(f"採用試行数: {n_accepted}　棄却試行数: {n_rejected}　総試行数: {n_total}")
+    st.markdown("")
+
+    #【表示】グラフを描画する
+    st.markdown("S1（標的刺激）と S2（標準刺激）の加算平均波形")
+    target_chs = ['Fz', 'Cz', 'Pz']
     times = evoked_s1.times * 1000 
-    
-    ch_idx = evoked_s1.ch_names.index(target_ch)
-    val_s1 = evoked_s1.data[ch_idx] * 1e6
-    val_s2 = evoked_s2.data[ch_idx] * 1e6
-
-    ax.plot(times, val_s1, color='red', label='S1 (Stimulus)', lw=2)
-    ax.plot(times, val_s2, color='orange', label='S2 (Response)', lw=2)
-
-    ax.axvline(0, color='black', lw=1)
-    ax.axhline(0, color='black', lw=0.5, alpha=0.5)
-    ax.set_title(f"ERP Comparison at {target_ch}")
-    ax.set_xlabel("Time (ms)")
-    ax.set_ylabel("Amplitude (μV)")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    if st.checkbox("陰性を上向きに表示（脳波の伝統的表示）"):
-        ax.invert_yaxis()
-
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+    for ax, ch_name in zip(axes, target_chs):
+        ch_idx = evoked_s1.ch_names.index(ch_name)
+        val_s1 = evoked_s1.data[ch_idx] * 1e6
+        val_s2 = evoked_s2.data[ch_idx] * 1e6
+        ax.plot(times, val_s1, color='red', label='S1', lw=2)
+        ax.plot(times, val_s2, color='orange', label='S2', lw=2)
+        ax.axvline(0, color='black', lw=1)
+        ax.axhline(0, color='black', lw=0.5, alpha=0.5)
+        ax.set_title(ch_name)
+        ax.set_ylabel("μV")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper right')
+    axes[-1].set_xlabel("Time (ms)")
+    plt.tight_layout()
     st.pyplot(fig)
-    
-    # 保存用データの作成
-    times = evoked_s1.times * 1000  # ms
-    
+    st.markdown("")
+
+    #【処理】csvとして出力するデータを整形する
+    times = evoked_s1.times * 1000
     export_df = pd.DataFrame({"Time_ms": times})
-    
     for ch_name in evoked_s1.ch_names:
         idx = evoked_s1.ch_names.index(ch_name)
-        export_df[f"{ch_name}_S1_avg"] = evoked_s1.data[idx] * 1e6
-        export_df[f"{ch_name}_S2_avg"] = evoked_s2.data[idx] * 1e6
+        export_df[f"{ch_name}_S1"] = evoked_s1.data[idx] * 1e6
+        export_df[f"{ch_name}_S2"] = evoked_s2.data[idx] * 1e6
 
-    st.write("各チャンネルの加算平均値（μV）をCSVとしてダウンロードできます。")
+    #【表示】csvデータの先頭を表示する
+    st.markdown("加算平均の結果をダウンロードできます")
     st.dataframe(export_df.head())
-
+    
+    #【処理】csvとして出力するデータを整形する
     csv = export_df.to_csv(index=False).encode('utf-8')
+    base_name = st.session_state.get("base_filename", "result")
+    output_name = f"{base_name}_erp.csv"
+
+    #【表示】ダウンロードボタン
     st.download_button(
-        label="解析結果をCSVでダウンロード",
+        label="ダウンロード",
         data=csv,
-        file_name="erp_result.csv",
+        file_name=output_name,
         mime="text/csv",
     )
+    st.write("---")
 
+    #【処理】一番最初に戻る
     if st.button("最初に戻る"):
         st.session_state.clear()
         st.rerun()
+# ---------------------------------------------------------------------------------------------------------
