@@ -52,7 +52,7 @@ elif st.session_state.step == 2:
     back_button(prev_step=1)
     
     #【表示】ファイルアップフォームを表示
-    st.markdown("「Browse files」から脳波データ（例: sub01_28.CSV）を読み込んでください")
+    st.markdown("「Upload」から脳波データ（例: sub01_28.CSV）を読み込んでください")
     uploaded_file = st.file_uploader("CSVのアップロードフォーム",type="csv",label_visibility="collapsed")
 
     #【処理】データがアップされたら
@@ -117,7 +117,7 @@ elif st.session_state.step == 3:
     st.markdown("図にカーソルを合わせると出てくるポップから、表示を大きくできます")
     st.pyplot(fig)
     st.markdown("上から、正中前頭部(Fz)、正中中心部(Cz)、正中頭頂部(Pz)、眼電図(EOG)、標的刺激(S1)、標準刺激(S2)となっているはずです")
-    st.write("---")
+    # st.write("---")
     
     #【処理】次へ進む
     if st.button("③エポッキング準備に進む"):
