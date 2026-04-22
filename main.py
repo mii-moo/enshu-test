@@ -117,7 +117,7 @@ elif st.session_state.step == 3:
     st.markdown("図にカーソルを合わせると出てくるポップから、表示を大きくできます")
     st.pyplot(fig)
     st.markdown("上から、正中前頭部(Fz)、正中中心部(Cz)、正中頭頂部(Pz)、眼電図(EOG)、標的刺激(S1)、標準刺激(S2)となっているはずです")
-    # st.write("---")
+    st.write("---")
     
     #【処理】次へ進む
     if st.button("③エポッキング準備に進む"):
@@ -229,12 +229,20 @@ elif st.session_state.step == 5:
 # STEP6----------------------------------------------------------------------------------------------------
 elif st.session_state.step == 6:
     st.subheader("⑤ノイズエポック除去")
+    
+    epochs = st.session_state.epochs
+
+    if "epochs_original" not in st.session_state:
+        st.session_state.epochs_original = epochs.copy()
+
+    if "n_epochs_original" not in st.session_state:
+        st.session_state.n_epochs_original = len(epochs)
 
     #【処理】戻る　そのときステップ内で設定した値はリセットする
     back_button(prev_step=5, reset_keys=["epoch_idx", "epoch_status", "all_checked"])
 
     #【処理】それぞれのエポックを初期状態として0にする
-    epochs = st.session_state.epochs
+    # epochs = st.session_state.epochs
     if "epoch_idx" not in st.session_state:
         st.session_state.epoch_idx = 0
     if "epoch_status" not in st.session_state:
@@ -315,13 +323,14 @@ elif st.session_state.step == 6:
         st.success("全試行のチェックが完了しました！")
 
         bad_epochs = [i for i, v in st.session_state.epoch_status.items() if v == -1]
-        st.session_state.n_epochs_original = len(epochs.events) + len(bad_epochs)
+        epochs_clean = st.session_state.epochs_original.copy()
+        #st.session_state.n_epochs_original = len(epochs.events) + len(bad_epochs)
         st.write("---")
 
         #【処理】次へ進む
         if st.button("⑥加算平均へ進む"):
-            epochs.drop(bad_epochs)
-            st.session_state.epochs = epochs
+            epochs_clean.drop(bad_epochs)
+            st.session_state.epochs = epochs_clean
             st.session_state.step = 7
             st.rerun()
 # ---------------------------------------------------------------------------------------------------------
@@ -344,11 +353,19 @@ elif st.session_state.step == 7:
     evoked_s2 = epochs['S2'].average()
     
     #【表示】試行数の表示
-    n_total = st.session_state.get("n_epochs_original", len(epochs))
-    n_accepted = len(epochs)
-    n_rejected = n_total - n_accepted
-    st.write(f"採用試行数: {n_accepted}　棄却試行数: {n_rejected}　総試行数: {n_total}")
-    st.markdown("")
+    #n_total = st.session_state.get("n_epochs_original", len(epochs))
+    #n_accepted = len(epochs)
+    #n_rejected = n_total - n_accepted
+    #st.write(f"採用試行数: {n_accepted}　棄却試行数: {n_rejected}　総試行数: {n_total}")
+    #st.markdown("")
+    
+    epoch_status = st.session_state.get("epoch_status", {})
+
+    n_total = st.session_state.n_epochs_original
+    n_accepted = sum(1 for v in epoch_status.values() if v == 1)
+    n_rejected = sum(1 for v in epoch_status.values() if v == -1)
+
+    st.write(f"採用: {n_accepted}　棄却: {n_rejected}　総数: {n_total}")
 
     #【表示】グラフを描画する
     st.markdown("S1（標的刺激）と S2（標準刺激）の加算平均波形")
