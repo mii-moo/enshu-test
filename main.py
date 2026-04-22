@@ -365,7 +365,30 @@ elif st.session_state.step == 7:
     n_accepted = sum(1 for v in epoch_status.values() if v == 1)
     n_rejected = sum(1 for v in epoch_status.values() if v == -1)
 
-    st.write(f"採用: {n_accepted}　棄却: {n_rejected}　総数: {n_total}")
+    # st.write(f"採用: {n_accepted}　棄却: {n_rejected}　総数: {n_total}")
+    
+    epoch_status = st.session_state.get("epoch_status", {})
+    events = st.session_state.epochs_original.events[:, 2]
+
+    s1_accept = s1_reject = 0
+    s2_accept = s2_reject = 0
+
+    for i, ev in enumerate(events):
+        status = epoch_status.get(i, 0)
+        
+        if ev == 1:  # S1
+            if status == 1:
+                s1_accept += 1
+            elif status == -1:
+                s1_reject += 1
+        else:  # S2
+            if status == 1:
+                s2_accept += 1
+            elif status == -1:
+                s2_reject += 1
+
+    st.write(f"S1 → 採用: {s1_accept} / 棄却: {s1_reject}")
+    st.write(f"S2 → 採用: {s2_accept} / 棄却: {s2_reject}")
 
     #【表示】グラフを描画する
     st.markdown("S1（標的刺激）と S2（標準刺激）の加算平均波形")
